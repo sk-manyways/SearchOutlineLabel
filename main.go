@@ -259,6 +259,7 @@ func main() {
 		var userInput string
 		fmt.Print("Search: ")
 		fmt.Scanln(&userInput)
+		userInput = strings.ToLower(userInput)
 		searchResult, err := trie.search(userInput)
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
