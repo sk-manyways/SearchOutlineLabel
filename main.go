@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
@@ -38,24 +39,59 @@ func newTrieNode() *TrieNode {
 	}
 }
 
+func (trie Trie) search(searchTerm string) ([]*TerminalNode, error) {
+	var result []*TerminalNode
+	var err error
+	var atNode = trie.root
+	didComplete := true
+	for i := 0; i < len(searchTerm); i++ {
+		c := searchTerm[i]
+		idx := determineIdx(c)
+
+		if idx == nil {
+			err = errors.New(fmt.Sprintf("Invalid character in search query %s", string(c)))
+		} else {
+			targetChild := atNode.children[*idx]
+			if targetChild != nil {
+				atNode = targetChild
+			} else {
+				didComplete = false
+			}
+		}
+	}
+	if didComplete {
+		result = atNode.terminalNodes
+	}
+
+	return result, err
+}
+
+func determineIdx(c byte) *uint8 {
+	if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '0') {
+		var idx uint8
+		if c >= 'a' && c <= 'z' {
+			idx = c - 'a'
+		} else {
+			idx = c - '0' + 26
+		}
+		return &idx
+	}
+	return nil
+}
+
 func (trie Trie) AddLine(line string, file FileInfoFull, lineNumber int32) {
 	line = strings.ToLower(line)
 	atNode := trie.root
 	wordLength := 0
 	for i := 0; i < len(line); i++ {
 		c := line[i]
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '0') {
+		idx := determineIdx(c)
+		if idx != nil {
 			wordLength++
-			var idx uint8
-			if c >= 'a' && c <= 'z' {
-				idx = c - 'a'
-			} else {
-				idx = c - '0' + 26
-			}
-			targetChild := atNode.children[idx]
+			targetChild := atNode.children[*idx]
 			if targetChild == nil {
 				targetChild = newTrieNode()
-				atNode.children[idx] = targetChild
+				atNode.children[*idx] = targetChild
 			}
 			atNode = targetChild
 		} else {
@@ -206,7 +242,21 @@ func main() {
 	for _, file := range filesToScan {
 		trie.Add(file)
 	}
-	fmt.Printf("Found # files: %v", len(filesToScan))
+	fmt.Printf("Found # files: %v\n", len(filesToScan))
+
+	for true {
+		var userInput string
+		fmt.Print("Search: ")
+		fmt.Scanln(&userInput)
+		searchResult, err := trie.search(userInput)
+		if err != nil {
+			fmt.Println("Error: " + err.Error())
+		} else {
+			for _, sr := range searchResult {
+				fmt.Printf("Line: %v, Path: %v\n", sr.LineNumber, sr.FullPath())
+			}
+		}
+	}
 }
 
 func fatal(message string) {
