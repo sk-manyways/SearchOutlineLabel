@@ -235,6 +235,7 @@ func main() {
 	ignoreFileExtensions[".mp4"] = struct{}{}
 	ignoreFileExtensions[".mpeg"] = struct{}{}
 	ignoreFileExtensions[".bin"] = struct{}{}
+	ignoreFileExtensions[".dll"] = struct{}{}
 
 	var ignoreDirectories = make(map[string]struct{})
 	ignoreDirectories[".git"] = struct{}{}
