@@ -117,6 +117,11 @@ func (trie Trie) Add(fileInput FileInfoFull) {
 
 	scanner := bufio.NewScanner(file)
 
+	// Double the default buffer size
+	const maxCapacity = 2048 * 1024 // 2048KB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+
 	lineNumber := int32(0)
 	for scanner.Scan() {
 		lineNumber += 1
@@ -125,7 +130,7 @@ func (trie Trie) Add(fileInput FileInfoFull) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fatal(err.Error())
+		fmt.Println(fmt.Sprintf("Error scanning file %v, error: %v", fileInput.FullPath(), err.Error()))
 	}
 }
 
@@ -224,6 +229,12 @@ func main() {
 	ignoreFileExtensions[".svg"] = struct{}{}
 	ignoreFileExtensions[".ico"] = struct{}{}
 	ignoreFileExtensions[".ttf"] = struct{}{}
+	ignoreFileExtensions[".mp3"] = struct{}{}
+	ignoreFileExtensions[".wav"] = struct{}{}
+	ignoreFileExtensions[".pdf"] = struct{}{}
+	ignoreFileExtensions[".mp4"] = struct{}{}
+	ignoreFileExtensions[".mpeg"] = struct{}{}
+	ignoreFileExtensions[".bin"] = struct{}{}
 
 	var ignoreDirectories = make(map[string]struct{})
 	ignoreDirectories[".git"] = struct{}{}
