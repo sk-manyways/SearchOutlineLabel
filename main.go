@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
@@ -9,9 +10,96 @@ import (
 	"strings"
 )
 
+type Trie struct {
+	root *TrieNode
+}
+
+type TrieNode struct {
+	children      []*TrieNode
+	terminalNodes []*TerminalNode
+}
+
+type TerminalNode struct {
+	FileInfoFull
+	LineNumber int32
+}
+
+func newTrie() *Trie {
+	return &Trie{
+		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
+		root: newTrieNode(),
+	}
+}
+
+func newTrieNode() *TrieNode {
+	return &TrieNode{
+		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
+		children: make([]*TrieNode, 36),
+	}
+}
+
+func (trie Trie) AddLine(line string, file FileInfoFull, lineNumber int32) {
+	line = strings.ToLower(line)
+	atNode := trie.root
+	wordLength := 0
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '0') {
+			wordLength++
+			var idx uint8
+			if c >= 'a' && c <= 'z' {
+				idx = c - 'a'
+			} else {
+				idx = c - '0' + 26
+			}
+			targetChild := atNode.children[idx]
+			if targetChild == nil {
+				targetChild = newTrieNode()
+				atNode.children[idx] = targetChild
+			}
+			atNode = targetChild
+		} else {
+			// create terminal node
+			if wordLength > 0 {
+				atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
+					file,
+					lineNumber,
+				})
+			}
+			atNode = trie.root
+			wordLength = 0
+		}
+	}
+}
+
+func (trie Trie) Add(fileInput FileInfoFull) {
+	file, err := os.Open(fileInput.FullPath())
+	if err != nil {
+		fatal(err.Error())
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	lineNumber := int32(0)
+	for scanner.Scan() {
+		lineNumber += 1
+		line := scanner.Text()
+		trie.AddLine(line, fileInput, lineNumber)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fatal(err.Error())
+	}
+}
+
 type FileInfoFull struct {
 	fs.FileInfo
-	FullPath string
+	fullPath string
+}
+
+func (f FileInfoFull) FullPath() string {
+	return f.fullPath
 }
 
 func mayUseFile(file fs.FileInfo, ignoreFileExtensions map[string]struct{}) bool {
@@ -65,7 +153,7 @@ func findFilesToScan(pathToScan string,
 
 				result = append(result, FileInfoFull{
 					FileInfo: file,
-					FullPath: abs,
+					fullPath: abs,
 				})
 			}
 		}
@@ -114,9 +202,11 @@ func main() {
 
 	filesToScan := findFilesToScan(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
+	trie := newTrie()
 	for _, file := range filesToScan {
-		fmt.Println(file.FullPath)
+		trie.Add(file)
 	}
+	fmt.Printf("Found # files: %v", len(filesToScan))
 }
 
 func fatal(message string) {
