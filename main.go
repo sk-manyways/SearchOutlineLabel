@@ -8,11 +8,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 type Trie struct {
-	root *TrieNode
+	root          *TrieNode
+	minWordLength int32
 }
 
 type TrieNode struct {
@@ -25,10 +27,11 @@ type TerminalNode struct {
 	LineNumber int32
 }
 
-func newTrie() *Trie {
+func newTrie(minWordLength int32) *Trie {
 	return &Trie{
 		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
-		root: newTrieNode(),
+		root:          newTrieNode(),
+		minWordLength: minWordLength,
 	}
 }
 
@@ -82,7 +85,7 @@ func determineIdx(c byte) *uint8 {
 func (trie Trie) AddLine(line string, file FileInfoFull, lineNumber int32) {
 	line = strings.ToLower(line)
 	atNode := trie.root
-	wordLength := 0
+	wordLength := int32(0)
 	for i := 0; i < len(line); i++ {
 		c := line[i]
 		idx := determineIdx(c)
@@ -95,8 +98,8 @@ func (trie Trie) AddLine(line string, file FileInfoFull, lineNumber int32) {
 			}
 			atNode = targetChild
 		} else {
-			// create terminal node
-			if wordLength > 0 {
+			// create a terminal node
+			if wordLength >= trie.minWordLength {
 				atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
 					file,
 					lineNumber,
@@ -115,12 +118,7 @@ func (trie Trie) Add(fileInput FileInfoFull) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-
-	// Double the default buffer size
-	const maxCapacity = 2048 * 1024 // 2048KB
-	buf := make([]byte, maxCapacity)
-	scanner.Buffer(buf, maxCapacity)
+	scanner := createScanner(file)
 
 	lineNumber := int32(0)
 	for scanner.Scan() {
@@ -207,12 +205,118 @@ func findFilesToScan(pathToScan string,
 	return result
 }
 
+func getLinesFromFile(fullPath string, lineNoStart int32, lineNoEnd int32) []string {
+	file, err := os.Open(fullPath)
+	if err != nil {
+		fatal(err.Error())
+	}
+	defer file.Close()
+
+	scanner := createScanner(file)
+
+	var result []string
+
+	lineNumber := int32(0)
+	for scanner.Scan() {
+		lineNumber += 1
+		if lineNumber >= lineNoStart && lineNumber < lineNoEnd {
+			line := scanner.Text()
+			result = append(result, line)
+		} else if lineNumber >= lineNoEnd {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println(fmt.Sprintf("Error on line number scanning for file %v, error: %v", fullPath, err.Error()))
+	}
+
+	return result
+}
+
+func createScanner(file *os.File) *bufio.Scanner {
+	scanner := bufio.NewScanner(file)
+
+	// Double the default buffer size
+	const maxCapacity = 2048 * 1024 // 2048KB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+	return scanner
+}
+
+/*
+   return pathToScan, before, after, displayContext
+*/
+func parseArgs(args []string) (string, int32, int32, bool) {
+	if len(args) < 2 {
+		printHelp()
+		os.Exit(1)
+	}
+
+	var pathToScan *string
+	before := int32(0)
+	after := int32(0)
+	displayContext := false
+
+	skip := false
+	for idx, arg := range args {
+		if idx == 0 {
+			continue
+		} else if skip {
+			skip = false
+			continue
+		}
+		if arg == "--help" {
+			printHelp()
+			os.Exit(0)
+		} else if arg[0:1] == "-" {
+			if arg[1:] == "A" {
+				afterCandidate, err := strconv.Atoi(args[idx+1])
+				if err != nil {
+					fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
+				}
+				after = int32(afterCandidate)
+				displayContext = true
+				skip = true
+			} else if arg[1:] == "B" {
+				beforeCandidate, err := strconv.Atoi(args[idx+1])
+				if err != nil {
+					fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
+				}
+				before = int32(beforeCandidate)
+				displayContext = true
+				skip = true
+			} else if arg[1:] == "D" {
+				displayContext = true
+			} else {
+				fatal(fmt.Sprintf("Unexpected arg %s", arg))
+			}
+		} else {
+			duplicateArg := arg
+			pathToScan = &duplicateArg
+		}
+	}
+
+	if pathToScan == nil {
+		fatal("Expected the pathToScan as input")
+	}
+
+	return *pathToScan, before, after, displayContext
+}
+
+func printHelp() {
+	fmt.Println("sol pathToScan [-B int] [-A int] [-D]\n" +
+		"-B: print num lines of leading context before matching lines. \n" +
+		"-A: print num lines of trailing context after matching lines. \n" +
+		"-D: display the context lines, will be true if -B or -A is used")
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fatal("Expected at least one argument - the path to scan")
 	}
 
-	pathToScan := os.Args[1]
+	pathToScan, linesBefore, linesAfter, displayContext := parseArgs(os.Args)
 
 	var ignoreFileExtensions = make(map[string]struct{})
 	ignoreFileExtensions[".class"] = struct{}{}
@@ -250,7 +354,8 @@ func main() {
 
 	filesToScan := findFilesToScan(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
-	trie := newTrie()
+	minWordLength := int32(3)
+	trie := newTrie(minWordLength)
 	for _, file := range filesToScan {
 		trie.Add(file)
 	}
@@ -267,6 +372,13 @@ func main() {
 		} else {
 			for _, sr := range searchResult {
 				fmt.Printf("Line: %v, Path: %v\n", sr.LineNumber, sr.FullPath())
+				if displayContext {
+					lines := getLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
+					for _, line := range lines {
+						fmt.Println(line)
+					}
+					fmt.Println()
+				}
 			}
 		}
 	}
