@@ -36,7 +36,7 @@ func NewTrie(minWordLength int32) *Trie {
 func newTrieNode() *TrieNode {
 	return &TrieNode{
 		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
-		children: make([]*TrieNode, 36),
+		children: make([]*TrieNode, 37),
 	}
 }
 
@@ -68,16 +68,18 @@ func (trie Trie) Search(searchTerm string) ([]*TerminalNode, error) {
 }
 
 func determineIdx(c byte) *uint8 {
-	if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '0') {
-		var idx uint8
-		if c >= 'a' && c <= 'z' {
-			idx = c - 'a'
-		} else {
-			idx = c - '0' + 26
-		}
-		return &idx
+	var idx *uint8
+	if c >= 'a' && c <= 'z' {
+		tmp := c - 'a'
+		idx = &tmp
+	} else if c >= '0' && c <= '9' {
+		tmp := c - '0' + 25
+		idx = &tmp
+	} else if c == '_' {
+		tmp := uint8(35 + 1)
+		idx = &tmp
 	}
-	return nil
+	return idx
 }
 
 func (trie Trie) AddLine(line string, file fileinfo.Full, lineNumber int32) {
@@ -106,6 +108,13 @@ func (trie Trie) AddLine(line string, file fileinfo.Full, lineNumber int32) {
 			atNode = trie.root
 			wordLength = 0
 		}
+	}
+
+	if wordLength >= trie.minWordLength {
+		atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
+			file,
+			lineNumber,
+		})
 	}
 }
 
