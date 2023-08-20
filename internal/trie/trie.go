@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/fileinfo"
@@ -24,7 +25,7 @@ type TerminalNode struct {
 	LineNumber int32
 }
 
-func newTrie(minWordLength int32) *Trie {
+func NewTrie(minWordLength int32) *Trie {
 	return &Trie{
 		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
 		root:          newTrieNode(),
@@ -39,7 +40,7 @@ func newTrieNode() *TrieNode {
 	}
 }
 
-func (trie Trie) search(searchTerm string) ([]*TerminalNode, error) {
+func (trie Trie) Search(searchTerm string) ([]*TerminalNode, error) {
 	var result []*TerminalNode
 	var err error
 	var atNode = trie.root
@@ -127,4 +128,14 @@ func (trie Trie) Add(fileInput fileinfo.Full) {
 	if err := scanner.Err(); err != nil {
 		fmt.Println(fmt.Sprintf("Error scanning fileinfo %v, error: %v", fileInput.FullPath(), err.Error()))
 	}
+}
+
+func createScanner(file *os.File) *bufio.Scanner {
+	scanner := bufio.NewScanner(file)
+
+	// Double the default buffer size
+	const maxCapacity = 2048 * 1024 // 2048KB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+	return scanner
 }

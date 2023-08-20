@@ -2,213 +2,19 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/fileinfo"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/trie"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
 
-type Trie struct {
-	root          *TrieNode
-	minWordLength int32
-}
-
-type TrieNode struct {
-	children      []*TrieNode
-	terminalNodes []*TerminalNode
-}
-
-type TerminalNode struct {
-	FileInfoFull
-	LineNumber int32
-}
-
-func newTrie(minWordLength int32) *Trie {
-	return &Trie{
-		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
-		root:          newTrieNode(),
-		minWordLength: minWordLength,
-	}
-}
-
-func newTrieNode() *TrieNode {
-	return &TrieNode{
-		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
-		children: make([]*TrieNode, 36),
-	}
-}
-
-func (trie Trie) search(searchTerm string) ([]*TerminalNode, error) {
-	var result []*TerminalNode
-	var err error
-	var atNode = trie.root
-	didComplete := true
-	for i := 0; i < len(searchTerm); i++ {
-		c := searchTerm[i]
-		idx := determineIdx(c)
-
-		if idx == nil {
-			err = errors.New(fmt.Sprintf("Invalid character in search query %s", string(c)))
-		} else {
-			targetChild := atNode.children[*idx]
-			if targetChild != nil {
-				atNode = targetChild
-			} else {
-				didComplete = false
-			}
-		}
-	}
-	if didComplete {
-		result = atNode.terminalNodes
-	}
-
-	return result, err
-}
-
-func determineIdx(c byte) *uint8 {
-	if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '0') {
-		var idx uint8
-		if c >= 'a' && c <= 'z' {
-			idx = c - 'a'
-		} else {
-			idx = c - '0' + 26
-		}
-		return &idx
-	}
-	return nil
-}
-
-func (trie Trie) AddLine(line string, file FileInfoFull, lineNumber int32) {
-	line = strings.ToLower(line)
-	atNode := trie.root
-	wordLength := int32(0)
-	for i := 0; i < len(line); i++ {
-		c := line[i]
-		idx := determineIdx(c)
-		if idx != nil {
-			wordLength++
-			targetChild := atNode.children[*idx]
-			if targetChild == nil {
-				targetChild = newTrieNode()
-				atNode.children[*idx] = targetChild
-			}
-			atNode = targetChild
-		} else {
-			// create a terminal node
-			if wordLength >= trie.minWordLength {
-				atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
-					file,
-					lineNumber,
-				})
-			}
-			atNode = trie.root
-			wordLength = 0
-		}
-	}
-}
-
-func (trie Trie) Add(fileInput FileInfoFull) {
-	file, err := os.Open(fileInput.FullPath())
-	if err != nil {
-		fatal(err.Error())
-	}
-	defer file.Close()
-
-	scanner := createScanner(file)
-
-	lineNumber := int32(0)
-	for scanner.Scan() {
-		lineNumber += 1
-		line := scanner.Text()
-		trie.AddLine(line, fileInput, lineNumber)
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println(fmt.Sprintf("Error scanning file %v, error: %v", fileInput.FullPath(), err.Error()))
-	}
-}
-
-type FileInfoFull struct {
-	fs.FileInfo
-	fullPath string
-}
-
-func (f FileInfoFull) FullPath() string {
-	return f.fullPath
-}
-
-func mayUseFile(file fs.FileInfo, ignoreFileExtensions map[string]struct{}) bool {
-	extension := strings.ToLower(filepath.Ext(file.Name()))
-
-	if _, exists := ignoreFileExtensions[extension]; exists {
-		return false
-	}
-
-	return true
-}
-
-func mayUseDirectory(file fs.FileInfo, ignoreDirectories map[string]struct{}, ignoreDirectoryWithPrefix map[string]struct{}) bool {
-	fileName := strings.ToLower(file.Name())
-	firstChar := string(fileName[0])
-	if _, exists := ignoreDirectoryWithPrefix[firstChar]; exists {
-		return false
-	}
-
-	if _, exists := ignoreDirectories[fileName]; exists {
-		return false
-	}
-
-	return true
-}
-
-func findFilesToScan(pathToScan string,
-	ignoreFileExtensions map[string]struct{},
-	ignoreDirectories map[string]struct{},
-	ignoreDirectoryWithPrefix map[string]struct{}) []FileInfoFull {
-	files, err := ioutil.ReadDir(pathToScan)
-
-	if err != nil {
-		fatal(err.Error())
-	}
-
-	var nextToScan []string
-	var result []FileInfoFull
-
-	for _, file := range files {
-		if file.IsDir() {
-			if mayUseDirectory(file, ignoreDirectories, ignoreDirectoryWithPrefix) {
-				nextToScan = append(nextToScan, filepath.Join(pathToScan, file.Name()))
-			}
-		} else {
-			if mayUseFile(file, ignoreFileExtensions) {
-				abs, err := filepath.Abs(filepath.Join(pathToScan, file.Name()))
-				if err != nil {
-					fatal(err.Error())
-				}
-
-				result = append(result, FileInfoFull{
-					FileInfo: file,
-					fullPath: abs,
-				})
-			}
-		}
-	}
-
-	for _, nextDir := range nextToScan {
-		result = append(result, findFilesToScan(nextDir, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)...)
-	}
-
-	return result
-}
-
 func getLinesFromFile(fullPath string, lineNoStart int32, lineNoEnd int32) []string {
 	file, err := os.Open(fullPath)
 	if err != nil {
-		fatal(err.Error())
+		logging.Fatal(err.Error())
 	}
 	defer file.Close()
 
@@ -273,7 +79,7 @@ func parseArgs(args []string) (string, int32, int32, bool) {
 			if arg[1:] == "A" {
 				afterCandidate, err := strconv.Atoi(args[idx+1])
 				if err != nil {
-					fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
+					logging.Fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
 				}
 				after = int32(afterCandidate)
 				displayContext = true
@@ -281,7 +87,7 @@ func parseArgs(args []string) (string, int32, int32, bool) {
 			} else if arg[1:] == "B" {
 				beforeCandidate, err := strconv.Atoi(args[idx+1])
 				if err != nil {
-					fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
+					logging.Fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
 				}
 				before = int32(beforeCandidate)
 				displayContext = true
@@ -289,7 +95,7 @@ func parseArgs(args []string) (string, int32, int32, bool) {
 			} else if arg[1:] == "D" {
 				displayContext = true
 			} else {
-				fatal(fmt.Sprintf("Unexpected arg %s", arg))
+				logging.Fatal(fmt.Sprintf("Unexpected arg %s", arg))
 			}
 		} else {
 			duplicateArg := arg
@@ -298,7 +104,7 @@ func parseArgs(args []string) (string, int32, int32, bool) {
 	}
 
 	if pathToScan == nil {
-		fatal("Expected the pathToScan as input")
+		logging.Fatal("Expected the pathToScan as input")
 	}
 
 	return *pathToScan, before, after, displayContext
@@ -313,7 +119,7 @@ func printHelp() {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("Expected at least one argument - the path to scan")
+		logging.Fatal("Expected at least one argument - the path to scan")
 	}
 
 	pathToScan, linesBefore, linesAfter, displayContext := parseArgs(os.Args)
@@ -352,12 +158,12 @@ func main() {
 	var ignoreDirectoryWithPrefix = make(map[string]struct{})
 	ignoreDirectoryWithPrefix["."] = struct{}{}
 
-	filesToScan := findFilesToScan(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
+	filesToScan := fileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
 	minWordLength := int32(3)
-	trie := newTrie(minWordLength)
+	newTrie := trie.NewTrie(minWordLength)
 	for _, file := range filesToScan {
-		trie.Add(file)
+		newTrie.Add(file)
 	}
 	fmt.Printf("Found # files: %v\n", len(filesToScan))
 
@@ -366,7 +172,7 @@ func main() {
 		fmt.Print("Search: ")
 		fmt.Scanln(&userInput)
 		userInput = strings.ToLower(userInput)
-		searchResult, err := trie.search(userInput)
+		searchResult, err := newTrie.Search(userInput)
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
 		} else {
@@ -382,9 +188,4 @@ func main() {
 			}
 		}
 	}
-}
-
-func fatal(message string) {
-	fmt.Println(message)
-	os.Exit(1)
 }
