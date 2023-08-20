@@ -51,24 +51,16 @@ func createScanner(file *os.File) *bufio.Scanner {
 }
 
 /*
-   return pathToScan, before, after, displayContext
+   return noPrefixArg, before, after
 */
-func parseArgs(args []string) (string, int32, int32, bool) {
-	if len(args) < 2 {
-		printHelp()
-		os.Exit(1)
-	}
-
-	var pathToScan *string
+func parseArgs(args []string) (string, int32, int32) {
+	var noPrefixArg *string
 	before := int32(0)
 	after := int32(0)
-	displayContext := false
 
 	skip := false
 	for idx, arg := range args {
-		if idx == 0 {
-			continue
-		} else if skip {
+		if skip {
 			skip = false
 			continue
 		}
@@ -77,44 +69,42 @@ func parseArgs(args []string) (string, int32, int32, bool) {
 			os.Exit(0)
 		} else if arg[0:1] == "-" {
 			if arg[1:] == "A" {
-				afterCandidate, err := strconv.Atoi(args[idx+1])
+				afterCandidate, err := strconv.Atoi(strings.TrimSpace(args[idx+1]))
 				if err != nil {
 					logging.Fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
 				}
 				after = int32(afterCandidate)
-				displayContext = true
 				skip = true
 			} else if arg[1:] == "B" {
-				beforeCandidate, err := strconv.Atoi(args[idx+1])
+				beforeCandidate, err := strconv.Atoi(strings.TrimSpace(args[idx+1]))
 				if err != nil {
 					logging.Fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
 				}
 				before = int32(beforeCandidate)
-				displayContext = true
 				skip = true
-			} else if arg[1:] == "D" {
-				displayContext = true
 			} else {
 				logging.Fatal(fmt.Sprintf("Unexpected arg %s", arg))
 			}
 		} else {
 			duplicateArg := arg
-			pathToScan = &duplicateArg
+			noPrefixArg = &duplicateArg
 		}
 	}
 
-	if pathToScan == nil {
-		logging.Fatal("Expected the pathToScan as input")
+	if noPrefixArg == nil {
+		logging.Fatal("Expected the noPrefixArg as input")
 	}
 
-	return *pathToScan, before, after, displayContext
+	return *noPrefixArg, before, after
 }
 
 func printHelp() {
-	fmt.Println("sol pathToScan [-B int] [-A int] [-D]\n" +
+	fmt.Println("sol pathToScan\n" +
+		"During execution: [-B int] [-A int] search\n" +
 		"-B: print num lines of leading context before matching lines. \n" +
-		"-A: print num lines of trailing context after matching lines. \n" +
-		"-D: display the context lines, will be true if -B or -A is used")
+		"-A: print num lines of trailing context after matching lines.\n" +
+		"\n" +
+		"Note flags can be placed anywhere, e.g. this is valid: [-B int] search [-A int]")
 }
 
 func min(a int32, b int32) int32 {
@@ -128,8 +118,7 @@ func main() {
 	if len(os.Args) < 2 {
 		logging.Fatal("Expected at least one argument - the path to scan")
 	}
-
-	pathToScan, linesBefore, linesAfter, displayContext := parseArgs(os.Args)
+	pathToScan := os.Args[1]
 
 	var ignoreFileExtensions = make(map[string]struct{})
 	ignoreFileExtensions[".class"] = struct{}{}
@@ -177,17 +166,19 @@ func main() {
 	fmt.Printf("Found # files: %v\n", len(filesToScan))
 
 	for true {
-		var userInput string
+		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Search: ")
-		fmt.Scanln(&userInput)
-		userInput = strings.ToLower(userInput)
-		searchResult, err := newTrie.Search(userInput)
+		userInput, _ := reader.ReadString('\n')
+		split := strings.Split(userInput, " ")
+		toSearchFor, linesBefore, linesAfter := parseArgs(split)
+		toSearchFor = strings.ToLower(toSearchFor)
+		searchResult, err := newTrie.Search(toSearchFor)
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
 		} else {
 			for _, sr := range searchResult {
 				fmt.Printf("Line: %v, Path: %v\n", sr.LineNumber, sr.FullPath())
-				if displayContext {
+				if linesBefore != 0 || linesAfter != 0 {
 					lines := getLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
 					for _, line := range lines {
 						lineLengthToShow := min(limitLineLength, int32(len(line)))
