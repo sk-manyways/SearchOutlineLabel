@@ -1,4 +1,4 @@
-package fileinfo
+package fullfileinfo
 
 import "io/fs"
 

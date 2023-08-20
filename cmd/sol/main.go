@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/sk-manyways/SearchOutlineLabel/internal/fileinfo"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/trie"
 	"os"
@@ -158,7 +158,7 @@ func main() {
 	var ignoreDirectoryWithPrefix = make(map[string]struct{})
 	ignoreDirectoryWithPrefix["."] = struct{}{}
 
-	filesToScan := fileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
+	filesToScan := fullfileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
 	minWordLength := int32(3)
 	newTrie := trie.NewTrie(minWordLength)

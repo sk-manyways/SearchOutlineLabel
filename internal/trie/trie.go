@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/sk-manyways/SearchOutlineLabel/internal/fileinfo"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
 	"os"
 	"strings"
@@ -21,7 +21,7 @@ type TrieNode struct {
 }
 
 type TerminalNode struct {
-	fileinfo.Full
+	fullfileinfo.Full
 	LineNumber int32
 }
 
@@ -82,7 +82,7 @@ func determineIdx(c byte) *uint8 {
 	return idx
 }
 
-func (trie Trie) AddLine(line string, file fileinfo.Full, lineNumber int32) {
+func (trie Trie) addLine(line string, file fullfileinfo.Full, lineNumber int32) {
 	line = strings.ToLower(line)
 	atNode := trie.root
 	wordLength := int32(0)
@@ -118,7 +118,7 @@ func (trie Trie) AddLine(line string, file fileinfo.Full, lineNumber int32) {
 	}
 }
 
-func (trie Trie) Add(fileInput fileinfo.Full) {
+func (trie Trie) Add(fileInput fullfileinfo.Full) {
 	file, err := os.Open(fileInput.FullPath())
 	if err != nil {
 		logging.Fatal(err.Error())
@@ -131,11 +131,11 @@ func (trie Trie) Add(fileInput fileinfo.Full) {
 	for scanner.Scan() {
 		lineNumber += 1
 		line := scanner.Text()
-		trie.AddLine(line, fileInput, lineNumber)
+		trie.addLine(line, fileInput, lineNumber)
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println(fmt.Sprintf("Error scanning fileinfo %v, error: %v", fileInput.FullPath(), err.Error()))
+		fmt.Println(fmt.Sprintf("Error scanning fullfileinfo %v, error: %v", fileInput.FullPath(), err.Error()))
 	}
 }
 

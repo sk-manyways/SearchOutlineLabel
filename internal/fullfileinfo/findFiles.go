@@ -1,4 +1,4 @@
-package fileinfo
+package fullfileinfo
 
 import (
 	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
