@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
@@ -54,7 +55,8 @@ func createScanner(file *os.File) *bufio.Scanner {
 /*
    return noPrefixArg, before, after
 */
-func parseArgs(args []string) (string, int32, int32) {
+func parseArgs(args []string) (*string, int32, int32, error) {
+	var parseArgsErr error
 	var noPrefixArg *string
 	before := int32(0)
 	after := int32(0)
@@ -74,21 +76,31 @@ func parseArgs(args []string) (string, int32, int32) {
 			os.Exit(0)
 		} else if arg[0:1] == "-" {
 			if arg[1:] == "A" {
-				afterCandidate, err := strconv.Atoi(args[idx+1])
-				if err != nil {
-					logging.Fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
+				if len(args) <= idx+1 {
+					parseArgsErr = errors.New(fmt.Sprintf("missing argument for A"))
+					break
+				} else {
+					afterCandidate, err := strconv.Atoi(args[idx+1])
+					if err != nil {
+						parseArgsErr = errors.New(fmt.Sprintf("invalid argument to A %s", args[idx+1]))
+					}
+					after = int32(afterCandidate)
+					skip = true
 				}
-				after = int32(afterCandidate)
-				skip = true
 			} else if arg[1:] == "B" {
-				beforeCandidate, err := strconv.Atoi(args[idx+1])
-				if err != nil {
-					logging.Fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
+				if len(args) <= idx+1 {
+					parseArgsErr = errors.New(fmt.Sprintf("missing argument for B"))
+					break
+				} else {
+					beforeCandidate, err := strconv.Atoi(args[idx+1])
+					if err != nil {
+						parseArgsErr = errors.New(fmt.Sprintf("invalid argument to B %s", args[idx+1]))
+					}
+					before = int32(beforeCandidate)
+					skip = true
 				}
-				before = int32(beforeCandidate)
-				skip = true
 			} else {
-				logging.Fatal(fmt.Sprintf("Unexpected arg %s", arg))
+				parseArgsErr = errors.New(fmt.Sprintf("unexpected arg %s", arg))
 			}
 		} else {
 			duplicateArg := arg
@@ -97,10 +109,10 @@ func parseArgs(args []string) (string, int32, int32) {
 	}
 
 	if noPrefixArg == nil {
-		logging.Fatal("Expected the noPrefixArg as input")
+		parseArgsErr = errors.New("expected a search term as input")
 	}
 
-	return *noPrefixArg, before, after
+	return noPrefixArg, before, after, parseArgsErr
 }
 
 func printHelp() {
@@ -199,7 +211,12 @@ func main() {
 		fmt.Print("Search: ")
 		userInput, _ := reader.ReadString('\n')
 		split := strings.Split(userInput, " ")
-		toSearchFor, linesBefore, linesAfter := parseArgs(split)
+		toSearchForPtr, linesBefore, linesAfter, err := parseArgs(split)
+		if err != nil {
+			fmt.Println(err.Error())
+			continue
+		}
+		toSearchFor := *toSearchForPtr
 		toSearchFor = strings.ToLower(toSearchFor)
 		searchResult, err := newTrie.Search(toSearchFor)
 		if err != nil {
