@@ -18,6 +18,7 @@ type Trie struct {
 type TrieNode struct {
 	children      []*TrieNode
 	terminalNodes []*TerminalNode
+	lineNumbers   map[int32]struct{}
 }
 
 type TerminalNode struct {
@@ -36,7 +37,8 @@ func NewTrie(minWordLength int32) *Trie {
 func newTrieNode() *TrieNode {
 	return &TrieNode{
 		// this first, simple version, will just work with the 26 letters of the alphabet + 10 numbers
-		children: make([]*TrieNode, 37),
+		children:    make([]*TrieNode, 37),
+		lineNumbers: make(map[int32]struct{}),
 	}
 }
 
@@ -82,7 +84,7 @@ func determineIdx(c byte) *uint8 {
 	return idx
 }
 
-func (trie Trie) addLine(line string, file fullfileinfo.Full, lineNumber int32) {
+func (trie Trie) addLine(line string, file fullfileinfo.Full, lineNumber int32, consolidateOnLineNumber bool) {
 	line = strings.ToLower(line)
 	atNode := trie.root
 	wordLength := int32(0)
@@ -99,7 +101,8 @@ func (trie Trie) addLine(line string, file fullfileinfo.Full, lineNumber int32) 
 			atNode = targetChild
 		} else {
 			// create a terminal node
-			if wordLength >= trie.minWordLength {
+			if mayUseWord(trie, *atNode, wordLength, lineNumber, consolidateOnLineNumber) {
+				atNode.lineNumbers[lineNumber] = struct{}{}
 				atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
 					file,
 					lineNumber,
@@ -110,12 +113,21 @@ func (trie Trie) addLine(line string, file fullfileinfo.Full, lineNumber int32) 
 		}
 	}
 
-	if wordLength >= trie.minWordLength {
+	if mayUseWord(trie, *atNode, wordLength, lineNumber, consolidateOnLineNumber) {
 		atNode.terminalNodes = append(atNode.terminalNodes, &TerminalNode{
 			file,
 			lineNumber,
 		})
 	}
+}
+
+func mayUseWord(trie Trie, node TrieNode, wordLength int32, lineNumber int32, consolidateOnLineNumber bool) bool {
+	if wordLength >= trie.minWordLength {
+		if _, exists := node.lineNumbers[lineNumber]; !(consolidateOnLineNumber && exists) {
+			return true
+		}
+	}
+	return false
 }
 
 func (trie Trie) Add(fileInput fullfileinfo.Full) {
@@ -131,7 +143,7 @@ func (trie Trie) Add(fileInput fullfileinfo.Full) {
 	for scanner.Scan() {
 		lineNumber += 1
 		line := scanner.Text()
-		trie.addLine(line, fileInput, lineNumber)
+		trie.addLine(line, fileInput, lineNumber, true)
 	}
 
 	if err := scanner.Err(); err != nil {

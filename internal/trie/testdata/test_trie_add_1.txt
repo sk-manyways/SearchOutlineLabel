@@ -1,6 +1,6 @@
 // random data as input
 int main() {
-    // testing under_scores12, main
+    // main, testing under_scores12, main
     return 0;
 }
 // last line

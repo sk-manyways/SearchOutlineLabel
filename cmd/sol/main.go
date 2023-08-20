@@ -128,19 +128,11 @@ func splitIncludingTerm(s string, term string) []string {
 
 	splitOnTerm := strings.Split(s, term)
 
-	if s[0:len(term)] == term {
-		result = append(result, term)
-	}
-
 	for idx, split := range splitOnTerm {
 		if idx%2 == 1 {
 			result = append(result, term)
 		}
 		result = append(result, split)
-	}
-
-	if len(s) > len(term) && s[len(s)-len(term):] == term {
-		result = append(result, term)
 	}
 
 	return result
@@ -228,7 +220,9 @@ func main() {
 						lineSplitOnSearchTerm := splitIncludingTerm(strings.ToLower(cappedLine), toSearchFor)
 						idxAt := 0
 						for _, linePart := range lineSplitOnSearchTerm {
-							lineInCorrectCase := cappedLine[idxAt : idxAt+len(linePart)]
+							// this maxIdx is done, because for cyrillic, characters are lost during toLower
+							maxIdx := min(int32(len(cappedLine)), int32(idxAt+len(linePart)))
+							lineInCorrectCase := cappedLine[idxAt:maxIdx]
 							idxAt += len(linePart)
 							if linePart == toSearchFor {
 								fmt.Print(style.Render(lineInCorrectCase))
