@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/trie"
@@ -58,6 +59,10 @@ func parseArgs(args []string) (string, int32, int32) {
 	before := int32(0)
 	after := int32(0)
 
+	for idx, arg := range args {
+		args[idx] = strings.TrimSpace(arg)
+	}
+
 	skip := false
 	for idx, arg := range args {
 		if skip {
@@ -69,14 +74,14 @@ func parseArgs(args []string) (string, int32, int32) {
 			os.Exit(0)
 		} else if arg[0:1] == "-" {
 			if arg[1:] == "A" {
-				afterCandidate, err := strconv.Atoi(strings.TrimSpace(args[idx+1]))
+				afterCandidate, err := strconv.Atoi(args[idx+1])
 				if err != nil {
 					logging.Fatal(fmt.Sprintf("Invalid argument to A %s", args[idx+1]))
 				}
 				after = int32(afterCandidate)
 				skip = true
 			} else if arg[1:] == "B" {
-				beforeCandidate, err := strconv.Atoi(strings.TrimSpace(args[idx+1]))
+				beforeCandidate, err := strconv.Atoi(args[idx+1])
 				if err != nil {
 					logging.Fatal(fmt.Sprintf("Invalid argument to B %s", args[idx+1]))
 				}
@@ -112,6 +117,33 @@ func min(a int32, b int32) int32 {
 		return a
 	}
 	return b
+}
+
+func splitIncludingTerm(s string, term string) []string {
+	if len(s) < len(term) {
+		return make([]string, 0)
+	}
+
+	var result []string
+
+	splitOnTerm := strings.Split(s, term)
+
+	if s[0:len(term)] == term {
+		result = append(result, term)
+	}
+
+	for idx, split := range splitOnTerm {
+		if idx%2 == 1 {
+			result = append(result, term)
+		}
+		result = append(result, split)
+	}
+
+	if len(s) > len(term) && s[len(s)-len(term):] == term {
+		result = append(result, term)
+	}
+
+	return result
 }
 
 func main() {
@@ -156,7 +188,7 @@ func main() {
 
 	filesToScan := fullfileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
-	minWordLength := int32(5)
+	minWordLength := int32(4)
 	limitLineLength := int32(120)
 
 	newTrie := trie.NewTrie(minWordLength)
@@ -164,6 +196,11 @@ func main() {
 		newTrie.Add(file)
 	}
 	fmt.Printf("Found # files: %v\n", len(filesToScan))
+
+	var style = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FAFAFA")).
+		Background(lipgloss.Color("#7D56F4"))
 
 	for true {
 		reader := bufio.NewReader(os.Stdin)
@@ -186,7 +223,21 @@ func main() {
 						if lineLengthToShow < int32(len(line)) {
 							lineLengthAdditional = "..."
 						}
-						fmt.Println(line[0:lineLengthToShow] + lineLengthAdditional)
+						cappedLine := line[0:lineLengthToShow]
+
+						lineSplitOnSearchTerm := splitIncludingTerm(strings.ToLower(cappedLine), toSearchFor)
+						idxAt := 0
+						for _, linePart := range lineSplitOnSearchTerm {
+							lineInCorrectCase := cappedLine[idxAt : idxAt+len(linePart)]
+							idxAt += len(linePart)
+							if linePart == toSearchFor {
+								fmt.Print(style.Render(lineInCorrectCase))
+							} else {
+								fmt.Print(lineInCorrectCase)
+							}
+						}
+
+						fmt.Println(lineLengthAdditional)
 					}
 					fmt.Println()
 				}
