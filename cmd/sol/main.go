@@ -117,6 +117,13 @@ func printHelp() {
 		"-D: display the context lines, will be true if -B or -A is used")
 }
 
+func min(a int32, b int32) int32 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		logging.Fatal("Expected at least one argument - the path to scan")
@@ -160,7 +167,9 @@ func main() {
 
 	filesToScan := fullfileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
-	minWordLength := int32(3)
+	minWordLength := int32(5)
+	limitLineLength := int32(120)
+
 	newTrie := trie.NewTrie(minWordLength)
 	for _, file := range filesToScan {
 		newTrie.Add(file)
@@ -181,7 +190,12 @@ func main() {
 				if displayContext {
 					lines := getLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
 					for _, line := range lines {
-						fmt.Println(line)
+						lineLengthToShow := min(limitLineLength, int32(len(line)))
+						lineLengthAdditional := ""
+						if lineLengthToShow < int32(len(line)) {
+							lineLengthAdditional = "..."
+						}
+						fmt.Println(line[0:lineLengthToShow] + lineLengthAdditional)
 					}
 					fmt.Println()
 				}
