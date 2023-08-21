@@ -55,7 +55,7 @@ func createScanner(file *os.File) *bufio.Scanner {
 /*
    return noPrefixArg, before, after
 */
-func parseArgs(args []string) (*string, int32, int32, error) {
+func parseExecutionArgs(args []string) (*string, int32, int32, error) {
 	var parseArgsErr error
 	var noPrefixArg *string
 	before := int32(0)
@@ -115,8 +115,62 @@ func parseArgs(args []string) (*string, int32, int32, error) {
 	return noPrefixArg, before, after, parseArgsErr
 }
 
+/*
+   return pathToScan, additionalFileExtensionsToIgnore
+*/
+func parseArgs(args []string) (*string, []string, error) {
+	var parseArgsErr error
+	var pathToScan *string
+	additionalFileExtensionsToIgnore := make([]string, 0)
+
+	for idx, arg := range args {
+		args[idx] = strings.TrimSpace(arg)
+	}
+
+	skip := 0
+	for idx, arg := range args {
+		if skip > 0 {
+			skip--
+			continue
+		}
+		if arg == "--help" {
+			printHelp()
+			os.Exit(0)
+		} else if arg[0:1] == "-" {
+			if arg[1:] == "IE" {
+				if len(args) <= idx+1 {
+					parseArgsErr = errors.New(fmt.Sprintf("missing argument for IE"))
+					break
+				} else {
+					for k := idx + 1; k < len(args); k++ {
+						extensionsCandidate := args[k]
+						if extensionsCandidate[0:1] == "-" {
+							break
+						}
+						skip++
+						additionalFileExtensionsToIgnore = append(additionalFileExtensionsToIgnore, "."+args[k])
+					}
+				}
+			} else {
+				parseArgsErr = errors.New(fmt.Sprintf("unexpected arg %s", arg))
+			}
+		} else {
+			duplicateArg := arg
+			pathToScan = &duplicateArg
+		}
+	}
+
+	if pathToScan == nil {
+		parseArgsErr = errors.New("expected a pathToScan as input")
+	}
+
+	return pathToScan, additionalFileExtensionsToIgnore, parseArgsErr
+}
+
 func printHelp() {
-	fmt.Println("sol pathToScan\n" +
+	fmt.Println("sol pathToScan [-IE space delimited list] \n" +
+		"-IE: ignored extensions, files with these extensions will not be searched; for example -IE exe sql\n" +
+		"\n" +
 		"During execution: [-B int] [-A int] search\n" +
 		"-B: print num lines of leading context before matching lines. \n" +
 		"-A: print num lines of trailing context after matching lines.\n" +
@@ -154,7 +208,11 @@ func main() {
 	if len(os.Args) < 2 {
 		logging.Fatal("Expected at least one argument - the path to scan")
 	}
-	pathToScan := os.Args[1]
+	pathToScan, additionalFileExtensionsToIgnore, err := parseArgs(os.Args[1:])
+
+	if err != nil {
+		logging.Fatal(err.Error())
+	}
 
 	var ignoreFileExtensions = make(map[string]struct{})
 	ignoreFileExtensions[".class"] = struct{}{}
@@ -178,6 +236,10 @@ func main() {
 	ignoreFileExtensions[".mpeg"] = struct{}{}
 	ignoreFileExtensions[".bin"] = struct{}{}
 	ignoreFileExtensions[".dll"] = struct{}{}
+	for _, ext := range additionalFileExtensionsToIgnore {
+		println("Ignoring " + ext)
+		ignoreFileExtensions[ext] = struct{}{}
+	}
 
 	var ignoreDirectories = make(map[string]struct{})
 	ignoreDirectories[".git"] = struct{}{}
@@ -190,7 +252,7 @@ func main() {
 	var ignoreDirectoryWithPrefix = make(map[string]struct{})
 	ignoreDirectoryWithPrefix["."] = struct{}{}
 
-	filesToScan := fullfileinfo.FindFilesRecursive(pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
+	filesToScan := fullfileinfo.FindFilesRecursive(*pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
 	minWordLength := int32(4)
 	limitLineLength := int32(120)
@@ -211,7 +273,7 @@ func main() {
 		fmt.Print("Search: ")
 		userInput, _ := reader.ReadString('\n')
 		split := strings.Split(userInput, " ")
-		toSearchForPtr, linesBefore, linesAfter, err := parseArgs(split)
+		toSearchForPtr, linesBefore, linesAfter, err := parseExecutionArgs(split)
 		if err != nil {
 			fmt.Println(err.Error())
 			continue
