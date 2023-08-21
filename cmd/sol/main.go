@@ -141,7 +141,7 @@ func splitIncludingTerm(s string, term string) []string {
 	splitOnTerm := strings.Split(s, term)
 
 	for idx, split := range splitOnTerm {
-		if idx%2 == 1 {
+		if idx > 0 {
 			result = append(result, term)
 		}
 		result = append(result, split)
@@ -218,7 +218,12 @@ func main() {
 		}
 		toSearchFor := *toSearchForPtr
 		toSearchFor = strings.ToLower(toSearchFor)
-		searchResult, err := newTrie.Search(toSearchFor)
+		matchWord := true
+		if toSearchFor[len(toSearchFor)-1] == '*' {
+			toSearchFor = toSearchFor[0 : len(toSearchFor)-1]
+			matchWord = false
+		}
+		searchResult, err := newTrie.Search(toSearchFor, matchWord)
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
 		} else {

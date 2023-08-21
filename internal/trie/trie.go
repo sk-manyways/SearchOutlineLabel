@@ -42,7 +42,7 @@ func newTrieNode() *TrieNode {
 	}
 }
 
-func (trie Trie) Search(searchTerm string) ([]*TerminalNode, error) {
+func (trie Trie) Search(searchTerm string, matchWord bool) ([]*TerminalNode, error) {
 	var result []*TerminalNode
 	var err error
 	var atNode = trie.root
@@ -63,10 +63,29 @@ func (trie Trie) Search(searchTerm string) ([]*TerminalNode, error) {
 		}
 	}
 	if didComplete {
-		result = atNode.terminalNodes
+		if matchWord {
+			result = atNode.terminalNodes
+		} else {
+			result = findAllChildNodeChildren(*atNode)
+		}
 	}
 
 	return result, err
+}
+
+func findAllChildNodeChildren(node TrieNode) []*TerminalNode {
+	var result = make([]*TerminalNode, 0)
+
+	result = append(result, node.terminalNodes...)
+
+	for i := 0; i < len(node.children); i++ {
+		child := node.children[i]
+		if child != nil {
+			result = append(result, findAllChildNodeChildren(*child)...)
+		}
+	}
+
+	return result
 }
 
 func determineIdx(c byte) *uint8 {
