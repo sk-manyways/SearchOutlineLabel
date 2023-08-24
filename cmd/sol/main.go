@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sk-manyways/SearchOutlineLabel/internal/fileutil"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/trie"
@@ -12,45 +13,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-func getLinesFromFile(fullPath string, lineNoStart int32, lineNoEnd int32) []string {
-	file, err := os.Open(fullPath)
-	if err != nil {
-		logging.Fatal(err.Error())
-	}
-	defer file.Close()
-
-	scanner := createScanner(file)
-
-	var result []string
-
-	lineNumber := int32(0)
-	for scanner.Scan() {
-		lineNumber += 1
-		if lineNumber >= lineNoStart && lineNumber < lineNoEnd {
-			line := scanner.Text()
-			result = append(result, line)
-		} else if lineNumber >= lineNoEnd {
-			break
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println(fmt.Sprintf("Error on line number scanning for file %v, error: %v", fullPath, err.Error()))
-	}
-
-	return result
-}
-
-func createScanner(file *os.File) *bufio.Scanner {
-	scanner := bufio.NewScanner(file)
-
-	// Double the default buffer size
-	const maxCapacity = 2048 * 1024 // 2048KB
-	buf := make([]byte, maxCapacity)
-	scanner.Buffer(buf, maxCapacity)
-	return scanner
-}
 
 /*
    return noPrefixArg, before, after
@@ -137,9 +99,9 @@ func parseArgs(args []string) (*string, []string, error) {
 			printHelp()
 			os.Exit(0)
 		} else if arg[0:1] == "-" {
-			if arg[1:] == "IE" {
+			if arg[1:] == "EE" {
 				if len(args) <= idx+1 {
-					parseArgsErr = errors.New(fmt.Sprintf("missing argument for IE"))
+					parseArgsErr = errors.New(fmt.Sprintf("missing argument for EE"))
 					break
 				} else {
 					for k := idx + 1; k < len(args); k++ {
@@ -168,8 +130,8 @@ func parseArgs(args []string) (*string, []string, error) {
 }
 
 func printHelp() {
-	fmt.Println("sol pathToScan [-IE space delimited list] \n" +
-		"-IE: ignored extensions, files with these extensions will not be searched; for example -IE exe sql\n" +
+	fmt.Println("sol pathToScan [-EE space delimited list] \n" +
+		"-EE: excluded extensions, files with these extensions will not be searched; for example -EE exe sql\n" +
 		"\n" +
 		"During execution: [-B int] [-A int] search\n" +
 		"-B: print num lines of leading context before matching lines. \n" +
@@ -292,7 +254,7 @@ func main() {
 			for _, sr := range searchResult {
 				fmt.Printf("Line: %v, Path: %v\n", sr.LineNumber, sr.FullPath())
 				if linesBefore != 0 || linesAfter != 0 {
-					lines := getLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
+					lines := fileutil.GetLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
 					for _, line := range lines {
 						lineLengthToShow := min(limitLineLength, int32(len(line)))
 						lineLengthAdditional := ""

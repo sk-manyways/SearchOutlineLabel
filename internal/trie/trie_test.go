@@ -19,14 +19,14 @@ func TestTrie_addLineBasic1(t *testing.T) {
 	trie.addLine("there are apples", createDummyFileInfo(), 21, false)
 
 	// search for "hello"
-	result, _ := trie.Search("hello")
+	result, _ := trie.Search("hello", true)
 	assert.Equal(t, 1, len(result))
 	result1 := *result[0]
 	assert.Equal(t, "/a/file.out", result1.FullPath())
 	assert.Equal(t, int32(20), result1.LineNumber)
 
 	// search for "there"
-	result, _ = trie.Search("there")
+	result, _ = trie.Search("there", true)
 	assert.Equal(t, 2, len(result))
 	result1 = *result[0]
 	assert.Equal(t, "/a/file.out", result1.FullPath())
@@ -36,11 +36,11 @@ func TestTrie_addLineBasic1(t *testing.T) {
 	assert.Equal(t, int32(21), result2.LineNumber)
 
 	// search for "there1"
-	result, _ = trie.Search("there1")
+	result, _ = trie.Search("there1", true)
 	assert.Equal(t, 0, len(result))
 
 	// search for "are"
-	result, _ = trie.Search("are")
+	result, _ = trie.Search("are", true)
 	assert.Equal(t, 0, len(result)) // not found because of min word length is 5
 }
 
@@ -50,7 +50,7 @@ func TestTrie_addLineUnderscore1(t *testing.T) {
 	trie.addLine("there are apples", createDummyFileInfo(), 21, false)
 
 	// search for "a_request"
-	result, _ := trie.Search("a_request")
+	result, _ := trie.Search("a_request", true)
 	assert.Equal(t, 1, len(result))
 	result1 := *result[0]
 	assert.Equal(t, "/a/file.out", result1.FullPath())
@@ -63,14 +63,14 @@ func TestTrie_addLineNumbers1(t *testing.T) {
 	trie.addLine("there are apples 12, z1", createDummyFileInfo(), 21, false)
 
 	// search for "123"
-	result, _ := trie.Search("123")
+	result, _ := trie.Search("123", true)
 	assert.Equal(t, 1, len(result))
 	result1 := *result[0]
 	assert.Equal(t, "/a/file.out", result1.FullPath())
 	assert.Equal(t, int32(20), result1.LineNumber)
 
 	// search for "z1"
-	result, _ = trie.Search("z1")
+	result, _ = trie.Search("z1", true)
 	assert.Equal(t, 1, len(result))
 	result1 = *result[0]
 	assert.Equal(t, "/a/file.out", result1.FullPath())
@@ -83,7 +83,7 @@ func TestTrie_Add(t *testing.T) {
 	trie.Add(fullfileinfo.NewFull(fileInfo, "./testdata/test_trie_add_1.txt"))
 
 	// search for "main"
-	result, _ := trie.Search("main") // should only find two results, because we are consolidating on lineNumber, meaning line 3 should only appear once in the search results
+	result, _ := trie.Search("main", true) // should only find two results, because we are consolidating on lineNumber, meaning line 3 should only appear once in the search result, trues
 	assert.Equal(t, 2, len(result))
 	result1 := *result[0]
 	assert.Equal(t, "./testdata/test_trie_add_1.txt", result1.FullPath())
@@ -93,21 +93,21 @@ func TestTrie_Add(t *testing.T) {
 	assert.Equal(t, int32(3), result2.LineNumber)
 
 	// search for "0"
-	result, _ = trie.Search("0")
+	result, _ = trie.Search("0", true)
 	assert.Equal(t, 1, len(result))
 	result1 = *result[0]
 	assert.Equal(t, "./testdata/test_trie_add_1.txt", result1.FullPath())
 	assert.Equal(t, int32(4), result1.LineNumber)
 
 	// search for "random"
-	result, _ = trie.Search("random")
+	result, _ = trie.Search("random", true)
 	assert.Equal(t, 1, len(result))
 	result1 = *result[0]
 	assert.Equal(t, "./testdata/test_trie_add_1.txt", result1.FullPath())
 	assert.Equal(t, int32(1), result1.LineNumber)
 
 	// search for "random"
-	result, _ = trie.Search("line")
+	result, _ = trie.Search("line", true)
 	assert.Equal(t, 1, len(result))
 	result1 = *result[0]
 	assert.Equal(t, "./testdata/test_trie_add_1.txt", result1.FullPath())
