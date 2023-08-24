@@ -3,14 +3,14 @@ package fileutil
 import (
 	"bufio"
 	"fmt"
-	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
+	"log"
 	"os"
 )
 
 func GetLinesFromFile(fullPath string, lineNoStart int32, lineNoEnd int32) []string {
 	file, err := os.Open(fullPath)
 	if err != nil {
-		logging.Fatal(err.Error())
+		log.Fatal(err.Error())
 	}
 	defer file.Close()
 
