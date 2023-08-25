@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sk-manyways/SearchOutlineLabel/internal/fullfileinfo"
-	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
+	"log"
 	"os"
 	"strings"
 )
@@ -152,7 +152,7 @@ func mayUseWord(trie Trie, node TrieNode, wordLength int32, lineNumber int32, co
 func (trie Trie) Add(fileInput fullfileinfo.Full) {
 	file, err := os.Open(fileInput.FullPath())
 	if err != nil {
-		logging.Fatal(err.Error())
+		log.Fatal(err.Error())
 	}
 	defer file.Close()
 

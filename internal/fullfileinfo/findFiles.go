@@ -1,9 +1,9 @@
 package fullfileinfo
 
 import (
-	"github.com/sk-manyways/SearchOutlineLabel/internal/logging"
 	"io/fs"
 	"io/ioutil"
+	"log"
 	"path/filepath"
 	"strings"
 )
@@ -39,7 +39,7 @@ func FindFilesRecursive(pathToScan string,
 	files, err := ioutil.ReadDir(pathToScan)
 
 	if err != nil {
-		logging.Fatal(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	var nextToScan []string
@@ -54,7 +54,7 @@ func FindFilesRecursive(pathToScan string,
 			if mayUseFile(file, ignoreFileExtensions) {
 				abs, err := filepath.Abs(filepath.Join(pathToScan, file.Name()))
 				if err != nil {
-					logging.Fatal(err.Error())
+					log.Fatal(err.Error())
 				}
 
 				result = append(result, NewFull(file, abs))
