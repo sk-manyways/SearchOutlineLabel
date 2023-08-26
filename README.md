@@ -1,4 +1,3 @@
-# sol
 Search the content of files, within specific directories, using a CLI.
 
 Currently only supports prefix, case insensitive, searching.
