@@ -2,9 +2,7 @@ Search the content of files, within specific directories, using a CLI.
 
 Currently only supports prefix, case insensitive, searching.
 
-## Example Usage
-
-Help:
+## Usage
 ```
 sol pathToScan [-EE space delimited list]
 -EE: excluded extensions, files with these extensions will not be searched; for example -EE exe sql
