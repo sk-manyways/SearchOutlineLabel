@@ -33,3 +33,15 @@ lib64
 parts
 sdist
 dist
+
+[min-word-length] # words shorter than this are not searchable; lower number = higher RAM usage
+4
+
+[limit-line-length] # output will be limited to 120 characters per search result
+120
+
+[match-background-clr]
+7D56F4
+
+[match-foreground-clr]
+FAFAFA

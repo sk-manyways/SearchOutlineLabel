@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -23,8 +24,8 @@ import (
 func parseExecutionArgs(args []string) (*string, int32, int32, error) {
 	var parseArgsErr error
 	var noPrefixArg *string
-	before := int32(0)
-	after := int32(0)
+	before := int32(-1)
+	after := int32(-1)
 
 	for idx, arg := range args {
 		args[idx] = strings.TrimSpace(arg)
@@ -77,6 +78,11 @@ func parseExecutionArgs(args []string) (*string, int32, int32, error) {
 		parseArgsErr = errors.New("expected a search term as input")
 	}
 
+	if before == -1 && after != -1 {
+		before = 0
+	} else if after == -1 && before != -1 {
+		after = 0
+	}
 	return noPrefixArg, before, after, parseArgsErr
 }
 
@@ -204,8 +210,11 @@ func main() {
 
 	filesToScan := fullfileinfo.FindFilesRecursive(*pathToScan, ignoreFileExtensions, ignoreDirectories, ignoreDirectoryWithPrefix)
 
-	minWordLength := int32(4)
-	limitLineLength := int32(120)
+	minWordLength := configfile.GetMinWordLength(solDirConfigPath)
+	limitLineLength := configfile.GetLimitLineLength(solDirConfigPath)
+
+	matchForegroundColour := configfile.GetMatchForegroundColour(solDirConfigPath)
+	matchBackgroundColour := configfile.GetMatchBackgroundColour(solDirConfigPath)
 
 	newTrie := trie.NewTrie(minWordLength)
 	for _, file := range filesToScan {
@@ -215,8 +224,8 @@ func main() {
 
 	var style = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4"))
+		Foreground("#" + lipgloss.Color(matchForegroundColour)).
+		Background("#" + lipgloss.Color(matchBackgroundColour))
 
 	for true {
 		reader := bufio.NewReader(os.Stdin)
@@ -236,42 +245,92 @@ func main() {
 			matchWord = false
 		}
 		searchResult, err := newTrie.Search(toSearchFor, matchWord)
+		searchResultMap := createMapFromFileToTerminalNodes(searchResult)
+		alreadyProcessed := make(map[string]struct{})
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
 		} else {
-			for _, sr := range searchResult {
-				fmt.Printf("Line: %v, Path: %v\n", sr.LineNumber, sr.FullPath())
-				if linesBefore != 0 || linesAfter != 0 {
-					lines := fileutil.GetLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
-					for _, line := range lines {
-						lineLengthToShow := min(limitLineLength, int32(len(line)))
-						lineLengthAdditional := ""
-						if lineLengthToShow < int32(len(line)) {
-							lineLengthAdditional = "..."
-						}
-						cappedLine := line[0:lineLengthToShow]
+			for key, searchResultForFileList := range searchResultMap {
+				if _, exists := alreadyProcessed[key]; exists {
+					continue
+				}
 
-						lineSplitOnSearchTerm := splitIncludingTerm(strings.ToLower(cappedLine), toSearchFor)
-						idxAt := 0
-						for _, linePart := range lineSplitOnSearchTerm {
-							// this maxIdx is done, because for cyrillic, characters are lost during toLower
-							maxIdx := min(int32(len(cappedLine)), int32(idxAt+len(linePart)))
-							lineInCorrectCase := cappedLine[idxAt:maxIdx]
-							idxAt += len(linePart)
-							if linePart == toSearchFor {
-								fmt.Print(style.Render(lineInCorrectCase))
-							} else {
-								fmt.Print(lineInCorrectCase)
-							}
-						}
-
-						fmt.Println(lineLengthAdditional)
+				if linesBefore != -1 || linesAfter != -1 {
+					for _, sr := range searchResultForFileList {
+						fmt.Printf("%v#%v\n", sr.FullPath(), sr.LineNumber)
+						printBeforeAndAfterMatchLines(linesBefore, linesAfter, sr, limitLineLength, toSearchFor, style)
 					}
-					fmt.Println()
+				} else {
+					lineNumbers := make([]int32, 0)
+					for _, searchResultForFile := range searchResultForFileList {
+						lineNumbers = append(lineNumbers, searchResultForFile.LineNumber)
+					}
+					fmt.Printf("%v #%v\n", key, formatLineNumbersToString(lineNumbers))
 				}
 			}
 		}
 	}
+}
+
+func formatLineNumbersToString(toConvert []int32) string {
+	result := ""
+	sort.Slice(toConvert, func(i, j int) bool { return toConvert[i] < toConvert[j] })
+	for idx, num := range toConvert {
+		converted := strconv.Itoa(int(num))
+		if idx == 0 {
+			result += converted
+		} else {
+			result += ", " + converted
+		}
+	}
+	return result
+}
+
+func printBeforeAndAfterMatchLines(linesBefore int32, linesAfter int32, sr trie.TerminalNode, limitLineLength int32, toSearchFor string, style lipgloss.Style) {
+	lines := fileutil.GetLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
+	for _, line := range lines {
+		lineLengthToShow := min(limitLineLength, int32(len(line)))
+		lineLengthAdditional := ""
+		if lineLengthToShow < int32(len(line)) {
+			lineLengthAdditional = "..."
+		}
+		cappedLine := line[0:lineLengthToShow]
+
+		lineSplitOnSearchTerm := splitIncludingTerm(strings.ToLower(cappedLine), toSearchFor)
+		idxAt := 0
+		for _, linePart := range lineSplitOnSearchTerm {
+			// this maxIdx is done, because for cyrillic, characters are lost during toLower
+			maxIdx := min(int32(len(cappedLine)), int32(idxAt+len(linePart)))
+			lineInCorrectCase := cappedLine[idxAt:maxIdx]
+			idxAt += len(linePart)
+			if linePart == toSearchFor {
+				fmt.Print(style.Render(lineInCorrectCase))
+			} else {
+				fmt.Print(lineInCorrectCase)
+			}
+		}
+
+		fmt.Println(lineLengthAdditional)
+	}
+	fmt.Println()
+}
+
+func createMapFromFileToTerminalNodes(nodes []*trie.TerminalNode) map[string][]trie.TerminalNode {
+	result := make(map[string][]trie.TerminalNode)
+	if nodes == nil {
+		return result
+	}
+
+	for _, node := range nodes {
+		existing := result[node.FullPath()]
+		if existing == nil {
+			existing = make([]trie.TerminalNode, 0)
+		}
+		existing = append(existing, *node)
+		result[node.FullPath()] = existing
+	}
+
+	return result
 }
 
 func getHomeDir() string {
