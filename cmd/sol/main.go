@@ -216,16 +216,25 @@ func main() {
 	matchForegroundColour := configfile.GetMatchForegroundColour(solDirConfigPath)
 	matchBackgroundColour := configfile.GetMatchBackgroundColour(solDirConfigPath)
 
+	fileMatchForegroundColour := configfile.GetFileMatchForegroundColour(solDirConfigPath)
+	fileMatchBackgroundColour := configfile.GetFileMatchBackgroundColour(solDirConfigPath)
+
 	newTrie := trie.NewTrie(minWordLength)
 	for _, file := range filesToScan {
 		newTrie.Add(file)
 	}
 	fmt.Printf("Found # files: %v\n", len(filesToScan))
 
-	var style = lipgloss.NewStyle().
+	var styleMatch = lipgloss.NewStyle().
 		Bold(true).
 		Foreground("#" + lipgloss.Color(matchForegroundColour)).
 		Background("#" + lipgloss.Color(matchBackgroundColour))
+
+	var styleFileMatch = lipgloss.NewStyle().
+		Bold(true).
+		Foreground("#" + lipgloss.Color(fileMatchForegroundColour)).
+		Background("#" + lipgloss.Color(fileMatchBackgroundColour)).
+		Bold(true)
 
 	for true {
 		reader := bufio.NewReader(os.Stdin)
@@ -257,15 +266,18 @@ func main() {
 
 				if linesBefore != -1 || linesAfter != -1 {
 					for _, sr := range searchResultForFileList {
-						fmt.Printf("%v#%v\n", sr.FullPath(), sr.LineNumber)
-						printBeforeAndAfterMatchLines(linesBefore, linesAfter, sr, limitLineLength, toSearchFor, style)
+						fmt.Print(styleFileMatch.Render(fmt.Sprintf("%v#%v", sr.FullPath(), sr.LineNumber)))
+						fmt.Println()
+						printBeforeAndAfterMatchLines(linesBefore, linesAfter, sr, limitLineLength, toSearchFor, styleMatch)
 					}
 				} else {
 					lineNumbers := make([]int32, 0)
 					for _, searchResultForFile := range searchResultForFileList {
 						lineNumbers = append(lineNumbers, searchResultForFile.LineNumber)
 					}
-					fmt.Printf("%v #%v\n", key, formatLineNumbersToString(lineNumbers))
+					fmt.Print(styleFileMatch.Render(fmt.Sprintf("%v", key)))
+					fmt.Printf(" #%v", formatLineNumbersToString(lineNumbers))
+					fmt.Println()
 				}
 			}
 		}
@@ -286,7 +298,14 @@ func formatLineNumbersToString(toConvert []int32) string {
 	return result
 }
 
-func printBeforeAndAfterMatchLines(linesBefore int32, linesAfter int32, sr trie.TerminalNode, limitLineLength int32, toSearchFor string, style lipgloss.Style) {
+func printBeforeAndAfterMatchLines(
+	linesBefore int32,
+	linesAfter int32,
+	sr trie.TerminalNode,
+	limitLineLength int32,
+	toSearchFor string,
+	styleMatch lipgloss.Style,
+) {
 	lines := fileutil.GetLinesFromFile(sr.FullPath(), sr.LineNumber-linesBefore, sr.LineNumber+linesAfter+1)
 	for _, line := range lines {
 		lineLengthToShow := min(limitLineLength, int32(len(line)))
@@ -304,7 +323,7 @@ func printBeforeAndAfterMatchLines(linesBefore int32, linesAfter int32, sr trie.
 			lineInCorrectCase := cappedLine[idxAt:maxIdx]
 			idxAt += len(linePart)
 			if linePart == toSearchFor {
-				fmt.Print(style.Render(lineInCorrectCase))
+				fmt.Print(styleMatch.Render(lineInCorrectCase))
 			} else {
 				fmt.Print(lineInCorrectCase)
 			}

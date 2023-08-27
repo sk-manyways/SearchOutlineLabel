@@ -20,6 +20,8 @@ const sectionMinWordLength = "[min-word-length]"
 const sectionLimitLineLength = "[limit-line-length]"
 const sectionMatchBackgroundColour = "[match-background-clr]"
 const sectionMatchForegroundColour = "[match-foreground-clr]"
+const sectionFileMatchBackgroundColour = "[file-match-background-clr]"
+const sectionFileMatchForegroundColour = "[file-match-foreground-clr]"
 
 var allSections = map[string]struct{}{
 	sectionExclExtensions:        {},
@@ -76,6 +78,22 @@ func GetMatchForegroundColour(fullPath string) string {
 	}
 
 	return getSingleStringInSection(sectionMatchForegroundColour, fullPath)
+}
+
+func GetFileMatchBackgroundColour(fullPath string) string {
+	if _, exists := fileContent[fullPath]; !exists {
+		initFileContent(fullPath)
+	}
+
+	return getSingleStringInSection(sectionFileMatchBackgroundColour, fullPath)
+}
+
+func GetFileMatchForegroundColour(fullPath string) string {
+	if _, exists := fileContent[fullPath]; !exists {
+		initFileContent(fullPath)
+	}
+
+	return getSingleStringInSection(sectionFileMatchForegroundColour, fullPath)
 }
 
 func getSingleIntInSection(section string, fullPath string) int32 {
@@ -165,6 +183,12 @@ dist
 7D56F4
 
 [match-foreground-clr]
+FAFAFA
+
+[file-match-background-clr]
+f47d56
+
+[file-match-foreground-clr]
 FAFAFA
 `)
 	if err := os.MkdirAll(directoryPath, 0755); err != nil {
